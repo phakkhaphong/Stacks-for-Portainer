@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: always
+    command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
+    volumes:
+      - cloudflared_data:/etc/cloudflared
+    networks:
+      - iot_net
+
+volumes:
+  cloudflared_data:
+
+networks:
+  iot_net:
+    external: true

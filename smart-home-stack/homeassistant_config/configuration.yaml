@@ -1,0 +1,87 @@
+# Loads default set of integrations. Do not remove.
+default_config:
+
+# Load frontend themes from the themes folder
+frontend:
+  themes: !include_dir_merge_named themes
+
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 172.18.0.0/16 # IP ของ Docker network
+    - 127.0.0.1  # IP Localhost
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+
+# =======================
+# 💡 TEMPLATE SENSORS
+# =======================
+template:
+  - sensor:
+      # 🔌 Grid Import = Consumption - Production (เฉพาะค่าบวก)
+      - name: "Envoy Today Grid Import"
+        unique_id: envoy_energy_import_today
+        unit_of_measurement: "kWh"
+        device_class: energy
+        state_class: total
+        state: >
+          {% set consumed = states('sensor.envoy_122232006902_energy_consumption_today') | float(0) %}
+          {% set produced = states('sensor.envoy_122232006902_energy_production_today') | float(0) %}
+          {% set imported = consumed - produced %}
+          {{ imported if imported > 0 else 0 }}
+
+      # ⚡ Grid Export = Production - Consumption (เฉพาะค่าบวก)
+      - name: "Envoy Today Grid Export"
+        unique_id: envoy_energy_export_today
+        unit_of_measurement: "kWh"
+        device_class: energy
+        state_class: total
+        state: >
+          {% set consumed = states('sensor.envoy_122232006902_energy_consumption_today') | float(0) %}
+          {% set produced = states('sensor.envoy_122232006902_energy_production_today') | float(0) %}
+          {% set exported = produced - consumed %}
+          {{ exported if exported > 0 else 0 }}
+
+# =======================
+# 📊 UTILITY METERS
+# =======================
+utility_meter:
+  # Daily Import (ดึงไฟจากกริด)
+  envoy_grid_import_daily:
+    source: sensor.envoy_today_grid_import
+    cycle: daily
+
+  # Monthly Import
+  envoy_grid_import_monthly:
+    source: sensor.envoy_today_grid_import
+    cycle: monthly
+
+  # Daily Export (ส่งไฟคืนกริด)
+  envoy_grid_export_daily:
+    source: sensor.envoy_today_grid_export
+    cycle: daily
+
+  # Monthly Export
+  envoy_grid_export_monthly:
+    source: sensor.envoy_today_grid_export
+    cycle: monthly
+
+# =======================
+# 🔔 (OPTIONAL) NOTIFICATIONS
+# แจ้งเตือนเมื่อเริ่มใช้ไฟจากกริดตอนกลางคืน
+# =======================
+automation:
+  - alias: "แจ้งเตือนเริ่มใช้ไฟจากกริด (หลังพระอาทิตย์ตก)"
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.envoy_today_grid_import
+        above: 0.1
+    condition:
+      - condition: sun
+        after: sunset
+    action:
+      - service: notify.mobile_app_YOUR_DEVICE_NAME
+        data:
+          message: "⚡ เริ่มใช้ไฟจากกริดหลังพระอาทิตย์ตกแล้ว"

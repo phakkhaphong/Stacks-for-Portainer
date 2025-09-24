@@ -1,0 +1,8 @@
+# Ignore all .env files
+**/.env
+
+# Ignore other sensitive or temporary files
+*.log
+*.tmp
+*.bak
+*.swp

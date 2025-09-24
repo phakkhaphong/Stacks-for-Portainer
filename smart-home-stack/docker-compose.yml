@@ -1,0 +1,107 @@
+
+version: '3.8'
+
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: ${HA_CONTAINER_NAME}
+    restart: always
+    privileged: true
+    ports:
+      - "${HA_PORT}:8123"
+    environment:
+      - TZ=${TZ}
+    volumes:
+      - /volume1/Docker/homeassistant_config:/config
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - iot_net
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: ${MQTT_CONTAINER_NAME}
+    restart: always
+    ports:
+      - "${MQTT_PORT}:1883"
+      - "${MQTT_WS_PORT}:9001"
+    volumes:
+      - mosquitto_config:/mosquitto/config
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+    networks:
+      - iot_net
+
+  zigbee2mqtt:
+    image: koenkk/zigbee2mqtt
+    container_name: ${Z2M_CONTAINER_NAME}
+    restart: always
+    depends_on:
+      - mosquitto
+    privileged: true           # 🔑 เปิดสิทธิระดับ root
+    group_add:
+      - dialout               # 🔑 ให้ container เข้าถึง group ที่ device อยู่
+    environment:
+      - TZ=${TZ}
+    devices:
+      - "${Z2M_DEVICE}:${Z2M_DEVICE}"
+    ports:
+      - "${Z2M_PORT}:8080"
+    volumes:
+      - ${Z2M_DATA_PATH}:/app/data
+    networks:
+      - iot_net
+
+  influxdb:
+    image: influxdb:2.7
+    container_name: influxdb
+    restart: always
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUX_USER}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUX_PASS}
+      - DOCKER_INFLUXDB_INIT_ORG=${INFLUX_ORG}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUX_BUCKET}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUX_TOKEN}
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    networks:
+      - iot_net
+
+  grafana:
+    image: grafana/grafana-oss:latest
+    container_name: ${GRAFANA_CONTAINER_NAME}
+    restart: always
+    ports:
+      - "${GRAFANA_PORT}:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASS}
+    networks:
+      - iot_net
+
+  node-red:
+    image: nodered/node-red:latest
+    container_name: ${NR_CONTAINER_NAME}
+    restart: always
+    ports:
+      - "${NR_PORT}:1880"
+    volumes:
+      - node_red_data:/data
+    networks:
+      - iot_net
+
+volumes:
+  mosquitto_config:
+  mosquitto_data:
+  mosquitto_log:
+  influxdb_data:
+  grafana_data:
+  node_red_data:
+
+networks:
+  iot_net:
+    external: true
